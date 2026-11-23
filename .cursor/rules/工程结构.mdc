@@ -1,0 +1,159 @@
+---
+description: skyworkShop 工程结构与目录规范
+alwaysApply: true
+---
+# 工程结构规范
+
+> 适用项目：`harness-project-structure`（skyworkShop 电商示例）  
+> 根目录：`skyworkshop-backend/`（8080）、`skyworkshop-frontend/`（5173）
+
+## 根目录结构
+
+```
+harness-project-structure/
+├── skyworkshop-backend/       # Spring Boot 后端（JDK 17+）
+├── skyworkshop-frontend/      # Vue 3 前端
+├── .cursor/
+│   ├── MANIFEST.yml          # Skill/Rule 元数据权威源
+│   ├── rules/                # 编码与流程规范（中文命名）
+│   ├── skills/               # 分阶段技能（需求分析、编码、评审）
+│   ├── hooks/                # 钩子脚本
+│   ├── hooks.json            # Hooks 注册
+│   ├── cli.json              # Agent CLI 权限（deny .env 等）
+│   ├── permissions.json      # 终端放行与 Auto-review 提示
+│   └── mcp.json              # MCP 配置
+├── .cursorignore             # Agent 忽略列表（仅 AI 安全相关）
+├── docs/
+│   ├── QUICKSTART.md         # 5 分钟入门
+│   ├── MAINTENANCE.md        # Harness 维护手册（全局唯一）
+│   ├── changes/              # 变更追踪（summary.md + SQL 脚本）
+│   └── wiki/                 # 业务模型、接口协议、数据模型、领域术语
+└── AGENTS.md                 # 项目入口索引
+```
+
+---
+
+## Vue 前端（`skyworkshop-frontend/`）
+
+```
+src/
+├── api/          # API 请求封装（按模块拆分，如 product.ts、cart.ts）
+├── components/   # 通用公共组件
+├── composables/  # 组合式函数（useXxx 逻辑抽离）
+├── layouts/      # 全局布局（DefaultLayout.vue）
+├── router/       # 路由配置
+├── stores/       # Pinia 状态管理（如 product.ts、cart.ts）
+├── styles/       # 全局样式
+├── types/        # TypeScript 类型定义
+├── utils/        # 工具函数（如 price.ts 金额换算）
+└── views/        # 页面视图，按模块分子目录（如 views/product/）
+```
+
+---
+
+## Spring Boot 后端（`skyworkshop-backend/`）
+
+**按业务模块分包**，根包 `com.skyworkshop`，每个模块自包含完整四层：
+
+```
+src/main/java/com/skyworkshop/
+├── SkyworkShopApplication.java
+├── common/                       # 跨模块公共组件
+│   ├── config/                   # MyBatis-Plus、Web 等配置
+│   ├── constant/                 # RedisKeyConstant 等常量
+│   ├── controller/               # 健康检查等通用接口
+│   ├── enums/                    # ErrorCode 等枚举
+│   ├── exception/                # BusinessException、GlobalExceptionHandler
+│   └── model/vo/                 # Result、PageVO 等通用 VO
+├── product/                      # 商品模块（已实现）
+├── cart/                         # 购物车模块（已实现）
+├── order/                        # 订单模块（按需扩展）
+└── mq/                           # RocketMQ 生产者/消费者（按需引入）
+    ├── producer/
+    └── consumer/
+```
+
+### 四层架构
+
+```
+Controller → Service → Repository(Mapper) → Model
+```
+
+| Layer | 职责 | 关键注解 |
+|-------|------|----------|
+| Controller | 路由、参数校验、响应封装 | `@RestController` |
+| Service | 业务逻辑、事务 | `@Service` |
+| Repository | 数据访问 | `@Mapper` / `BaseMapper<T>` |
+| Model | Entity / DTO / VO | `@TableName` / POJO |
+
+**依赖方向**：Controller → Service → Repository → Model，严禁反向依赖。
+
+---
+
+## 模块边界
+
+| Module | Package | 依赖 | 说明 | 状态 |
+|--------|---------|------|------|------|
+| common | `com.skyworkshop.common` | - | 异常、Result、配置、常量 | 已实现 |
+| product | `com.skyworkshop.product` | common | 商品 CRUD、分页查询 | 已实现 |
+| cart | `com.skyworkshop.cart` | common, product | 购物车加购、查询 | 已实现 |
+| order | `com.skyworkshop.order` | common, product, cart | 下单、支付、状态流转 | 规划中 |
+| mq | `com.skyworkshop.mq` | common | 异步消息（订单创建、库存扣减） | 规划中 |
+
+跨模块调用规则：
+- 必须通过 **Service 接口** 调用，禁止跨模块直接访问 Mapper
+- 例：cart 模块校验商品时调用 `ProductService`，禁止 cart 注入 `ProductMapper`
+
+---
+
+## 前后端文件放置规则
+
+| 类型 | 前端路径 | 后端路径 |
+|------|----------|----------|
+| 页面视图 | `src/views/{module}/` | - |
+| API 封装 | `src/api/{module}.ts` | - |
+| 状态管理 | `src/stores/{module}.ts` | - |
+| 类型定义 | `src/types/{module}.ts` | - |
+| 控制器 | - | `{module}/controller/{Module}Controller.java` |
+| 服务接口 | - | `{module}/service/{Module}Service.java` |
+| 服务实现 | - | `{module}/service/impl/{Module}ServiceImpl.java` |
+| 数据访问 | - | `{module}/repository/{Module}Mapper.java` |
+| 实体 | - | `{module}/model/entity/{Entity}.java` |
+| DTO | - | `{module}/model/dto/{Entity}DTO.java` |
+| VO | - | `{module}/model/vo/{Entity}VO.java` |
+| 数据库脚本 | - | `docs/changes/{feature}/db-migrations.sql` |
+
+数据流转：**DTO（入参）→ Entity（库表）→ VO（返回前端）**
+
+---
+
+## 命名规范
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| Java 类 | PascalCase | `ProductService` |
+| Java 方法/字段 | camelCase | `getById`、`priceInCents` |
+| Java 包 | 全小写 | `com.skyworkshop.product` |
+| REST 路径 | kebab-case + 复数资源 | `/api/v1/products` |
+| 数据库表/列 | snake_case | `product_sku`、`price_in_cents` |
+| Vue 组件/文件 | PascalCase | `ProductListView.vue` |
+| Composable | use 前缀 camelCase | `useCart.ts` |
+| Pinia Store | `use{Module}Store` | `useProductStore` |
+| TS 类型 | PascalCase | `Product`、`ApiResult` |
+| 金额字段 | `*InCents` / `*_in_cents` | `priceInCents` |
+
+术语须与 `docs/wiki/领域术语.md` 保持一致，禁止自造业务名词。
+
+---
+
+## 架构红线
+
+1. 包名根路径必须为 `com.skyworkshop`，业务代码按模块子包组织
+2. 四层依赖方向不可反转，Controller 禁止直接访问 Repository
+3. 跨模块必须通过 Service 接口，禁止跨模块注入 Mapper
+4. 前端 HTTP 请求必须通过 `src/api/` 封装，禁止在组件内直接 axios
+5. 数据库操作通过 Mapper/MyBatis-Plus，禁止在 Service 中拼接 SQL
+6. 新增文件须按上述目录放置，禁止在根包下随意建类
+7. 变更须同步更新 `docs/changes/{feature}/summary.md`
+
+业务红线（金额、注入、异常等）见 `项目红线.mdc`。

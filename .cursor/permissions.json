@@ -1,0 +1,27 @@
+{
+  "terminalAllowlist": [
+    "git status",
+    "git diff",
+    "git log",
+    "git add",
+    "git commit",
+    "git branch",
+    "git checkout",
+    "git revert",
+    "git stash",
+    "mvn",
+    "npm",
+    "node",
+    "curl",
+    "grep",
+    "pre-commit"
+  ],
+  "autoRun": {
+    "block_instructions": [
+      "Never read or write .env files or paths matching .env* — use .env.example for documentation only.",
+      "Never run destructive shell commands such as rm, del, Remove-Item, mv, move, git rm, git mv, or git clean.",
+      "Never use bash -c or powershell -Command to wrap destructive operations.",
+      "Never access or modify private key files (*.pem, *.key) or credentials.json."
+    ]
+  }
+}

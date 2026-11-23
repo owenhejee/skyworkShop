@@ -1,0 +1,14 @@
+﻿# Agent 忽略列表（仅 AI 安全相关，阻止 Agent 读取/索引敏感文件）
+# 构建产物、依赖、IDE 等见 .gitignore
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+**/application-prod.yml
+**/*password*
+**/*secret*
+.cursor/settings.local.json
+local-doc/

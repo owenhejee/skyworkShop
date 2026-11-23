@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "hooks": {
+    "workspaceOpen": [
+      {
+        "command": "node .cursor/hooks/ai-stats/setup-ai-stats.cjs"
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "node .cursor/hooks/ai-stats/setup-ai-stats.cjs"
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "node .cursor/hooks/ai-stats/hooks.cjs",
+        "matcher": "Write|StrReplace"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node .cursor/hooks/ai-stats/hooks.cjs",
+        "matcher": "Write|StrReplace"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/ai-stats/hooks.cjs"
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": "node .cursor/hooks/ai-stats/hooks.cjs"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "node .cursor/hooks/ai-stats/hooks.cjs",
+        "matcher": "git\\s+commit"
+      }
+    ]
+  }
+}

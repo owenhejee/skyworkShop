@@ -1,0 +1,146 @@
+---
+description: Conventional Commits 规范 — 提交信息格式自动检查
+alwaysApply: false
+globs: "**"
+---
+# Conventional Commits
+
+> 来源：[conventionalcommits.org](https://www.conventionalcommits.org/zh-hans/v1.0.0/)
+
+## 提交信息格式
+
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
+```
+
+## Type 枚举
+
+| Type | 说明 | 示例 |
+|------|------|------|
+| `feat` | 新功能 | `feat(product): 添加商品搜索接口` |
+| `fix` | Bug 修复 | `fix(cart): 修复数量为负数的问题` |
+| `refactor` | 重构（非新功能、非修复） | `refactor(order): 提取金额计算工具类` |
+| `perf` | 性能优化 | `perf(product): 添加商品列表缓存` |
+| `test` | 测试相关 | `test(cart): 补充购物车单元测试` |
+| `docs` | 文档变更 | `docs(wiki): 更新接口协议文档` |
+| `style` | 格式变更（不影响逻辑） | `style: Spotless 格式化` |
+| `chore` | 构建/工具/依赖 | `chore(deps): 升级 Spring Boot 到 3.3` |
+| `ci` | CI/CD 变更 | `ci: 添加 GitLab CI 流水线` |
+| `revert` | 回滚 | `revert: 回退 feat(product) 提交` |
+
+## 规则
+
+1. `type` 和 `subject` 必填，`scope` 可选
+2. `subject` 使用祈使句（「添加」而非「添加了」）
+3. `subject` 不超过 72 字符
+4. `body` 说明 **为什么** 改，而非改了什么
+5. `BREAKING CHANGE:` 开头的大版本变更必须在 footer 中标注
+6. 每个提交只做一件事
+
+## 禁止的提交信息
+
+- `fix bug`（应为 `fix: 修复 xxx`）
+- `update code`（应为 `refactor|feat|fix: 具体说明`）
+- `WIP`（使用 `git stash` 或特性分支替代）
+- 空提交信息
+
+## AI 代码统计（commit trailer）
+
+> 基线设计：`docs/superpowers/specs/2026-06-30-ai-stats-design.md`  
+> 增量（排除 / setup / SCM / 漏标）：`docs/superpowers/specs/2026-08-24-ai-stats-exclude-prune-setup-design.md`  
+> 交接索引：`docs/superpowers/specs/2026-08-24-ai-stats-handoff.md`
+
+### 首次配置（本机）
+
+用 Cursor 打开本仓库即可：`workspaceOpen`（若可用）或首次 Agent `sessionStart` → `setup-ai-stats.cjs`（§5.2.1）：
+
+- **本机未就绪（首次）** → 自动完整 `--setup`（force + 诊断 + 冒烟）
+- **已就绪且最近非 merge 提交含 `AI-Authored:`** → 跳过
+- **已就绪但最近提交缺标** → 再跑完整 setup
+- 诊断/冒烟失败 **不阻断** 打开仓库 / 开对话（`exit 0`）
+- **兜底**：部分 Cursor 版本会请求 `workspaceOpen` 但不真正执行命令；`sessionStart` 用同一脚本补跑（决策幂等，已就绪则跳过）
+
+一键运维 / 诊断（手动）：
+
+```bash
+# Windows
+.cursor\hooks\ai-stats\setup-ai-stats.bat
+# Mac / Linux
+.cursor/hooks/ai-stats/setup-ai-stats.sh
+# 或直接
+node .cursor/hooks/ai-stats/setup-ai-stats.cjs --setup
+```
+
+（可选）`CURSOR_USER_EMAIL` 环境变量 → 写入 `AI_EMAIL` trailer。
+
+### 双模式 hooksPath
+
+| 仓类型 | `core.hooksPath` | 说明 |
+|--------|------------------|------|
+| **无 Husky**（本模板） | `.cursor/hooks/ai-stats` | `--setup` 可强制覆盖；入口为 thin wrapper → `hooks.cjs` |
+| **有 `.husky`** | `.husky/_`（或 `.husky`） | **禁止**长期指到 ai-stats；由 `.husky/*` 调用 `node .../hooks.cjs "$@"` |
+
+硬约束（AC-L3 / F-SETUP-HUSKY）：
+
+1. **禁止**把无后缀硬链 `prepare-commit-msg` → `hooks.cjs` 当作 Git 入口（`"type":"module"` 仓会 `require is not defined`）
+2. 有 Husky 时只用 `node .../hooks.cjs <hookName> "$@"`（必须转发 `"$@"`，否则 `prepare-commit-msg` 拿不到 `COMMIT_EDITMSG`）
+3. `--setup` force 时对已有 `.husky/*`：**追加** ai-stats 调用行，不整文件覆盖（保留 lint-staged 等）
+
+误把有 Husky 的仓指到 ai-stats 时：`git config --local core.hooksPath .husky/_` 后重装 husky，再跑 `--setup`。
+
+### 路径排除
+
+配置：`.cursor/hooks/ai-stats/ai-stats.exclude.json` 的 `excludePaths`（逗号分隔；默认排除 `.cursor`、`docs`、`node_modules`、`target` 等非业务路径）。
+
+- 命中路径：不采集、不计 `Lines`/`Files`、不参与归因
+- staged **全部**为排除路径：不写任何 `AI-` trailer（合法不写）
+- 不排除业务 `src/components`
+
+### Trailer 字段
+
+| 字段 | 说明 |
+|------|------|
+| `AI-Authored` | `yes` / `no` / `unknown` |
+| `Lines` / `Files` | staged 总量（已排除路径不计） |
+| `AI-Lines-*` / `AI-Files` | 仅 `yes` 时写入 |
+
+### 提交方式（SCM 规避）
+
+Cursor SCM 面板在部分版本会注入 `hooksPath=devNull`，导致 `prepare-commit-msg` / `post-commit` **不执行**，commit 无 `AI-Authored`（属 Cursor 产品问题，ai-stats **无法根治**）。
+
+**推荐：** 用**集成终端**提交：`git add` + `git commit -m "..."`。
+
+### 漏标提示与自动补救（F-SCM-AUTO-REMEDIATE）
+
+有 AI 采集（`active.jsonl`）但 message 无 `AI-Authored:` 时：
+
+1. **`afterShellExecution`（终端 / Agent `git commit`）**：门禁通过则自动 `soft reset` + 重 commit 补标（改 SHA）；Cursor 侧不阻断。
+2. **`pre-push`**：同样尝试补 HEAD；**若补标成功** → 本次 push **exit 1**，提示再执行一次 `git push`（避免远程仍收到旧 SHA）；未补救或失败 → **exit 0**，仅 warn，push 继续。
+3. 门禁摘要：只修 HEAD；仅 `active` 证据；非全 exclude；未出现在 `@{u}`；非 merge；`AI_STATS_NO_AUTO_FIX=1` 可关闭。
+
+**禁止**对已 push 的提交自动改写 / force push。  
+手动兜底（未 push）：`git reset --soft HEAD~1` 后终端再 `git commit`（勿依赖空 index 的 `amend --no-edit`）。
+
+### 硬规范
+
+1. AI 协作提交须带 trailer（Git Hook 自动注入）
+2. 禁止 `git commit --no-verify` 绕过（hotfix 须补 trailer）
+3. 纯人工提交须为 `AI-Authored: no`
+4. Cursor Bug 未修前勿依赖 SCM 面板提交做 AI 统计
+5. 指标仅供团队效能分析，不作个人 KPI 唯一依据
+
+### 汇总
+
+```bash
+node .cursor/hooks/ai-stats/ai-stats.cjs --since 7d --md
+```
+
+### 本地测试
+
+```bash
+node .cursor/hooks/ai-stats/run-tests.cjs
+```

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "permissions": {
+    "allow": [
+      "Shell(git)",
+      "Shell(mvn)",
+      "Shell(npm)",
+      "Shell(node)",
+      "Shell(curl)",
+      "Shell(bash)",
+      "Shell(powershell)",
+      "Read(docs/**)",
+      "Read(.cursor/**)",
+      "Read(skyworkshop-backend/**)",
+      "Read(skyworkshop-frontend/**)",
+      "Write(skyworkshop-backend/**)",
+      "Write(skyworkshop-frontend/**)",
+      "Write(docs/**)"
+    ],
+    "deny": [
+      "Shell(rm)",
+      "Shell(del)",
+      "Shell(Remove-Item)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Write(**/*.pem)",
+      "Write(**/*.key)",
+      "Write(**/credentials.json)"
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+---
+description: Java 代码质量 — 补充编码规范未覆盖的通用最佳实践
+alwaysApply: false
+globs: skyworkshop-backend/**/*.java
+---
+# Java 代码质量（通用最佳实践）
+
+> 来源：Effective Java、Google Java Style Guide、SonarSource Rules
+> 本文件补充 `编码规范.mdc`（业务特定），覆盖通用 Java 最佳实践
+
+## 方法设计
+
+- 方法不超过 30 行；超过则提取私有方法
+- 参数不超过 4 个；超过则封装为参数对象（DTO）
+- 避免返回 null；用 `Optional<T>` 或抛 `BusinessException`
+- 避免 Boolean 参数（难以理解语义）；拆成两个方法或用 enum
+
+```java
+// ✅ 正确：用 Optional
+public Optional<Product> findById(Long id) { ... }
+
+// ❌ 错误：返回 null
+public Product findById(Long id) { return null; }
+```
+
+## 集合与空值
+
+- 返回空集合用 `Collections.emptyList()`，禁止返回 null
+- 用 `List.of()` / `Map.of()` 替代 `Arrays.asList()`（不可变）
+- 外部输入在使用前做 null 检查；Service 层关键字段提前返回或抛异常
+
+## 异常处理
+
+- 禁止 catch 后空处理或仅 `printStackTrace()`
+- catch 后要么重新抛出业务异常，要么记录日志并返回降级值
+- finally 块中禁止 return 或 throw
+
+```java
+// ✅ 正确
+try {
+    productMapper.insert(entity);
+} catch (DataAccessException e) {
+    log.error("Failed to insert product: {}", entity.getName(), e);
+    throw new BusinessException(ErrorCode.DB_ERROR, e);
+}
+```
+
+## 日志
+
+- 用 Lombok `@Slf4j` 统一获取 Logger
+- 信息日志用占位符，禁止字符串拼接：`log.info("user={} added item={}", userId, productId)`
+- 禁止在循环中打印 info 级别日志
+- 错误日志必须包含异常对象：`log.error("msg", exception)`
+
+## 并发安全
+
+- SimpleDateFormat 不是线程安全的 → 用 `java.time.format.DateTimeFormatter`
+- HashMap 在多线程读写下不安全 → 用 `ConcurrentHashMap`
+- 共享可变状态必须加锁或用原子类（`AtomicInteger`、`AtomicReference`）
+
+## 资源管理
+
+- IO 流、数据库连接必须用 try-with-resources 关闭
+- 禁止在 finalize() 中释放资源（Java 9+ 已废弃）
+
+## Lombok 使用
+
+- 实体类用 `@Data` 仅限简单 POJO
+- Service/Controller 用 `@RequiredArgsConstructor`（而非 `@AllArgsConstructor`）
+- 禁止用 `@SneakyThrows` 吞掉受检异常（改为包装成 BusinessException）

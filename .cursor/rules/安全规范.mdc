@@ -1,0 +1,68 @@
+---
+description: 业务特定安全规则。通用扫描由社区工具（Gitleaks/Semgrep）负责。
+alwaysApply: true
+---
+# 安全规范（业务专用）
+
+> **秘钥扫描、依赖 CVE、通用 SAST 由社区工具负责（Gitleaks、TruffleHog、Semgrep）。**
+> 本文件仅包含 skyworkShop 电商领域特有的安全约束。
+> 严重度：**阻断（BLOCKER）** / **警告（WARNING）** / **提示（INFO）**
+
+## 电商业务安全
+
+| 场景 | 要求 | 严重度 |
+|------|------|:------:|
+| 价格篡改 | 下单/加购价格须从服务端读取并快照，禁止信任前端传入金额 | 阻断 |
+| 库存超卖 | 扣减须原子操作（DB 乐观锁 / Redis Lua），禁止先查后改无锁 | 阻断 |
+| 越权访问 | 购物车/订单/地址须校验 `userId` 归属，禁止仅凭 ID 操作他人数据 | 阻断 |
+| 订单幂等 | 支付回调、MQ 消费须幂等（去重表 / processLog），防止重复扣款或重复发货 | 阻断 |
+| 输入校验 | quantity ≥ 1、size ≤ 100 等分页参数须校验范围 | 警告 |
+
+## 阻断（BLOCKER）：生产禁止
+
+- 禁止硬编码密码、API Key、Token、数据库连接串（开发阶段放 `application.yml`，生产用环境变量）
+- 禁止 SQL 字符串拼接，必须使用 MyBatis `#{}` 参数化查询
+- 禁止在日志、API 响应中输出用户敏感信息（密码明文、完整手机号、支付信息）
+- 禁止关闭 CSRF / CORS 的全局放行而不加白名单（生产环境）
+- 禁止前端存储或传输未脱敏的密码
+- 密码须 BCrypt 加密存储，禁止明文或可逆加密
+- 禁止在生产环境执行 `DROP` / `TRUNCATE` / 无 `WHERE` 的 `DELETE`
+- 禁止绕过 Service 层直接暴露数据库写操作接口
+
+## 开发阶段安全
+
+当前使用 `X-User-Id` 请求头模拟登录，**不可用于生产**。上线前必须：
+
+1. 接入 JWT / Session 鉴权，移除 Header 模拟
+2. 写操作接口校验 Token 有效性
+3. 敏感配置外置（`spring.datasource.password` 等），使用环境变量或密钥管理服务
+4. H2 Console（`/h2-console`）仅开发环境启用，生产必须关闭
+
+## 警告（WARNING）：须人工审查
+
+以下场景生成代码后须标注 ⚠️ 并经人工审查：
+
+- 涉及**金额计算**的代码（精度、舍入、优惠券叠加）
+- 涉及**库存扣减**的并发逻辑
+- 涉及**订单状态流转**的状态机
+- 涉及**支付回调**的签名验证与幂等处理
+- 涉及**用户数据查询**是否过滤 `userId`
+- 新增 **ErrorCode** 是否与 HTTP 语义兼容
+- 数据库迁移脚本是否可回滚
+
+## 提示（INFO）
+
+- 定期扫描依赖漏洞（`mvn dependency-check` 或 CI 集成）
+- `.env`、密钥文件加入 `.gitignore`，禁止提交到仓库
+- 个人数据（PIPL）处理遵循最小必要原则，日志脱敏
+- Gitleaks pre-commit 由团队在仓库根按需接入（非 Harness 内置文件）
+
+## 社区工具覆盖（不由本文件维护）
+
+| 能力 | 工具 |
+|------|------|
+| 提交秘钥扫描 | Gitleaks（pre-commit） |
+| 全量凭证扫描 | TruffleHog（每周 CI） |
+| SQL 注入检测 | Semgrep |
+| 依赖 CVE | `mvn dependency-check` / Dependabot |
+| 硬编码凭证 | Gitleaks（150+ 内置规则） |

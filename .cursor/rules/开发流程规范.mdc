@@ -1,0 +1,135 @@
+---
+description: 十阶段流水线、变更管理、summary 六项、40% 阈值、熵管理 — Harness 方法论核心
+alwaysApply: true
+---
+# 开发流程规范
+
+> 本文件是 Harness 方法论的通用核心，适用于任意软件项目。
+> Skills 分阶段指引见 `.cursor/skills/`。
+
+## 一、十阶段流水线
+
+| Stage | 名称 | 质量门禁 | 产出 | 工具/Skill |
+| :---: | ---- | -------- | ---- | ---------- |
+| 1 | 需求分析 | 需求清晰、验收标准可测 | summary.md | `request-analysis` |
+| 2 | 方案设计 | 方案可行、与 Wiki 一致 | 技术方案 | `request-analysis` |
+| 3 | 任务拆分 | 单任务 ≤ 4h、依赖明确 | 任务列表 | `request-analysis` |
+| 4 | 编码实现 | 红线零违反、可编译 | 可运行代码 | `coding-skill` |
+| 5 | 单元测试 | 覆盖率 ≥ 80%，核心逻辑 100% | 测试报告 | Universal Tester / EvoSuite / 对话生成 |
+| 6 | 代码评审 | 评审通过、无遗留问题 | 评审记录 | `expert-reviewer` |
+| 7 | 集成测试 | 前后端联调、接口对齐 | 联调记录 | curl / docker-compose |
+| 8 | 预发验证 | 冒烟通过 | 验证记录 | docker-compose healthcheck |
+| 9 | 上线部署 | 构建成功、健康检查 | 部署记录 | docker-compose + smoke test |
+| 10 | 线上观测 | 无异常日志、核心接口可用 | 观测报告 | `/health` 端点 + 日志监控 |
+
+> 示例项目 Stage 8-10 可在本地 H2 + Vite dev 完成，但 summary 与回滚脚本仍须齐全。
+
+## 二、回滚路线
+
+| Stage | 回滚策略 | 触发条件 |
+| ---- | -------- | -------- |
+| 编码实现 | `git checkout --` 或 `git revert` | 编译失败 |
+| 单元测试 | 修复测试或回退代码 | 测试失败率 > 20% |
+| 代码评审 | 按评审意见修改 | 红线违规未修复 |
+| 集成测试 | 回退到上一稳定提交 | 接口不通 |
+| 预发验证 | 回退到上一版本 | 冒烟失败 |
+| 上线部署 | 回滚 jar / 镜像 | 健康检查失败 |
+| 线上观测 | 紧急回滚 + 功能降级 | 错误率 > 1% |
+
+数据库回滚：执行 `docs/changes/{feature}/rollback.sql`。
+
+## 三、变更管理
+
+### 目录结构
+
+```
+docs/changes/
+├── TEMPLATE-feature/summary.md    # 黄金样本模板（复制使用）
+└── {feature-name}/                # kebab-case，如 cart-add-item
+    ├── summary.md                 # 强制：6 项字段
+    ├── db-migrations.sql          # 有表变更时
+    └── rollback.sql               # 有表变更时
+```
+
+### summary.md 强制 6 项
+
+1. **变更概述** — 需求描述与验收标准（可勾选 checklist）
+2. **影响模块** — 前后端模块及依赖关系
+3. **数据库变更** — 表/字段/索引，附脚本路径（无则写「无」）
+4. **API 变更** — 新增/修改的接口路径与请求响应示例
+5. **Redis/MQ 变更** — Key 模式 / Topic / TTL（无则写「无」或「后续优化项」）
+6. **关键约束与回滚** — 红线约束、git/SQL 回滚步骤
+
+复制 `docs/changes/TEMPLATE-feature/summary.md` 开始每个新功能。参考：`docs/changes/cart-add-item/summary.md`。
+
+### 变更与 Wiki 同步
+
+| 变更类型 | 须同步 |
+|----------|--------|
+| 新增 API | `docs/wiki/接口协议.md` |
+| 新增/修改表 | `docs/wiki/数据模型.md` |
+| 新增实体/状态 | `docs/wiki/业务模型.md`、`docs/wiki/领域术语.md` |
+| 新增错误码 | `common/enums/ErrorCode.java` + summary.md |
+
+## 四、AI 编码约束
+
+### 40% 阈值
+
+- AI 单次变更量不超过**目标文件当前行数**的 40%（向下取整）
+- **新文件不受限**；**测试文件不受限**
+- 超出则拆分多轮，每轮后 `mvn compile` / `npm run build` 通过再继续
+
+### 质量检查点
+
+| 检查点 | 标准 |
+| ---- | ---- |
+| 编译 | 0 error |
+| 红线 | 对照 `项目红线.mdc` 零违反 |
+| 测试 | `mvn test` + JaCoCo ≥ 80%（接入后） |
+| 联调 | curl / 浏览器验证 |
+| 评审 | expert-reviewer 无阻断项 |
+| 秘钥 | 提交前无硬编码密钥 |
+
+## 五、推荐执行顺序
+
+```
+1. 复制 TEMPLATE-feature → docs/changes/{feat}/ 并写 summary.md
+2. 后端：Model → Mapper → Service → Controller → 单测
+3. 若有表变更：编写 db-migrations.sql + rollback.sql
+4. 前端：types → api → store → views
+5. mvn test && 前后端联调
+6. 标记 summary.md 为「已完成」
+7. 触发 expert-reviewer
+```
+
+## 六、熵管理
+
+> 代码熵 = 技术债务积累程度。按 发现 → 分级 → 修复 → 复测 → 归档 → 复盘 闭环管控。
+
+| 阶段 | 动作 | 产出 |
+| ---- | ---- | ---- |
+| 熵采集 | 静态扫描 + 评审问题汇总 | 高风险文件清单 |
+| 熵分级 | 按违规密度分级 | 整改清单 |
+| 熵修复 | 分批重构（单次 ≤ 40%） | 重构代码 + 单测 |
+| 熵复测 | 全量质量校验 | 复测报告 |
+| 熵归档 | 录入 changes 目录 | 归档记录 |
+| 熵复盘 | 月度汇总腐化原因 | 优化方案 |
+
+高熵文件优先纳入迭代，禁止持续堆积；熵治理同样遵循 40% 改动阈值。
+
+## 七、Stage 覆盖责任表
+
+> 无专属 Skill 的 Stage 由 **CI / 命令 / 人工** 负责，非流水线断裂。废弃 Skill 见 `.cursor/MANIFEST.yml` 的 `deprecated_*`。
+
+| Stage | 名称 | 负责方 | 入口 |
+| :---: | ---- | ------ | ---- |
+| 1–3 | 需求分析 / 方案 / 拆分 | **Skill** | `@request-analysis` |
+| 4 | 编码实现 | **Skill** | `@coding-skill` |
+| 5 | 单元测试 | **命令 / 对话** | `mvn test`；复杂逻辑对话补测 |
+| 6 | 代码评审 | **Skill** | `@expert-reviewer`（含 Harness 配置评审） |
+| 7 | 集成测试 | **命令 / 人工** | curl、浏览器联调 |
+| 8 | 预发验证 | **命令 / 人工** | `docker-compose` healthcheck 或本地冒烟 |
+| 9 | 上线部署 | **CI / 人工** | 构建 jar / 镜像 + smoke test |
+| 10 | 线上观测 | **命令 / 人工** | `/health` + 日志监控 |
+
+**废弃资产迁移：** `code-reviewer` Agent → `@expert-reviewer`；`unit-test-write` / `test-writer` → `mvn test` 或对话生成；`deploy-verify` → `curl /health`。

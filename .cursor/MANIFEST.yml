@@ -1,0 +1,71 @@
+version: 1
+
+# Skill / Rule 元数据权威源
+# 新增 Skill 时：更新本文件 + 对应 SKILL.md（共 2 处）
+# requires_rules 路径格式须与 SKILL.md front matter 的 requires.rules 一致
+
+skills:
+  request-analysis:
+    name: request-analysis
+    stage: [1, 2, 3]
+    path: .cursor/skills/request-analysis/SKILL.md
+    requires_rules:
+      - .cursor/rules/项目红线.mdc
+      - .cursor/rules/工程结构.mdc
+      - .cursor/rules/开发流程规范.mdc
+    requires_context:
+      - AGENTS.md
+
+  coding-skill:
+    name: coding-skill
+    stage: [4]
+    path: .cursor/skills/coding-skill/SKILL.md
+    requires_rules:
+      - .cursor/rules/项目红线.mdc
+      - .cursor/rules/工程结构.mdc
+      - .cursor/rules/编码规范.mdc
+    requires_context:
+      - AGENTS.md
+
+  expert-reviewer:
+    name: expert-reviewer
+    stage: [6]
+    path: .cursor/skills/expert-reviewer/SKILL.md
+    requires_rules:
+      - .cursor/rules/项目红线.mdc
+      - .cursor/rules/安全规范.mdc
+      - .cursor/rules/编码规范.mdc
+    requires_context:
+      - AGENTS.md
+
+rules:
+  - id: 项目红线
+    path: .cursor/rules/项目红线.mdc
+    always_apply: true
+  - id: 工程结构
+    path: .cursor/rules/工程结构.mdc
+    always_apply: true
+  - id: 编码规范
+    path: .cursor/rules/编码规范.mdc
+    always_apply: false
+  - id: 安全规范
+    path: .cursor/rules/安全规范.mdc
+    always_apply: true
+  - id: 开发流程规范
+    path: .cursor/rules/开发流程规范.mdc
+    always_apply: true
+  - id: 提交规范
+    path: .cursor/rules/提交规范.mdc
+    always_apply: false
+  - id: Java最佳实践
+    path: .cursor/rules/Java最佳实践.mdc
+    always_apply: false
+
+deprecated_skills:
+  - unit-test-write
+  - unit-test-ci
+  - deploy-verify
+
+deprecated_agents:
+  - code-reviewer   # → expert-reviewer Skill
+  - test-writer     # → mvn test / 对话生成

@@ -1,0 +1,114 @@
+---
+description: 业务特定编码规则。通用格式由社区工具（Spotless/Prettier/ESLint）负责。
+alwaysApply: false
+globs: skyworkshop-backend/**/*.java,skyworkshop-frontend/**/*.{vue,ts}
+---
+# 编码规范（业务专用）
+
+> **通用格式化由社区工具负责（Spotless + Prettier/ESLint），本文件仅包含领域特有的、Linter 无法覆盖的约束。**
+> 详细 API 约定见 `docs/wiki/接口协议.md`，表结构见 `docs/wiki/数据模型.md`。
+> 不可违反的红线见 `项目红线.mdc`。
+
+## 金额处理
+
+所有金额以**分**为单位，使用 Integer 存储：
+
+```java
+// ✅ 正确：后端
+private Integer priceInCents;  // 9900 = 99.00元
+```
+
+```typescript
+// ✅ 正确：前端
+formatPriceInCents(9900)  // → "99.00"
+yuanToCents(99)           // → 9900
+```
+
+## 异常处理
+
+必须使用 `BusinessException` + `ErrorCode` 枚举：
+
+```java
+// ✅ 正确
+throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND, productId);
+
+// ❌ 错误
+throw new RuntimeException("Product not found");
+```
+
+新增错误码在 `common/enums/ErrorCode.java` 中扩展，格式 `{MODULE}_{REASON}`。
+
+## Controller 规范
+
+- 构造器注入（`@RequiredArgsConstructor`）
+- 入参使用 `@Valid` + DTO（`jakarta.validation`）
+- 返回值统一 `Result<T>` 或 `Result<PageVO<T>>`
+
+## Service 规范
+
+- `@Transactional(rollbackFor = Exception.class)`
+- 接口与实现分离：`XxxService` + `XxxServiceImpl`
+- 复杂 Service 逻辑须同步规划单元测试（Stage 5）
+
+## Repository / Mapper 规范
+
+- 继承 `BaseMapper<T>`
+- 条件查询使用 `LambdaQueryWrapper`，禁止硬编码字段名字符串
+- 分页使用 `Page<T>` + `PageVO` 封装
+- 自定义 SQL 写在 Mapper XML，禁止 Java 拼接 SQL
+
+## 数据库规范
+
+| 规则 | 说明 |
+|------|------|
+| 金额字段 | INT，命名 `*_in_cents` |
+| 软删除 | `is_deleted`（MyBatis-Plus 逻辑删除） |
+| 主键 | BIGINT 自增 |
+| 时间 | `created_at` / `updated_at`，禁止业务层手动维护 |
+| 索引 | 普通 `idx_{table}_{columns}`，唯一 `uk_{table}_{columns}` |
+
+**开发环境**：H2 内存库（`application.yml`），Schema 由 `schema.sql` + `data.sql` 初始化。
+
+## API 设计
+
+- RESTful，资源名复数，版本前缀 `/api/v1/`
+- 分页参数：`page`（从 1 开始，默认 1）、`size`（默认 20）
+- 错误码见 `docs/wiki/接口协议.md`
+
+## 用户身份（开发阶段）
+
+当前无 JWT 鉴权，使用请求头模拟登录。**不可用于生产：**
+
+```
+X-User-Id: 1
+```
+
+上线前须替换为 Bearer Token 鉴权（见 `安全规范.mdc`）。
+
+## Redis（按需引入）
+
+- Key 前缀 `skyworkshop:`，通过 `RedisKeyConstant` 管理
+- 必须设置 TTL，禁止永久 Key
+- 缓存策略：先更新数据库，再删除缓存（Cache Aside）
+
+## RocketMQ（按需引入）
+
+- Topic 命名：`skyworkshop-{module}-{event}`
+- Consumer 必须幂等（去重表或 processLog 检查）
+- Producer 须处理发送失败；消息体含 traceId
+
+## 前端规范
+
+- 必须使用 `<script setup lang="ts">`，禁止 Options API
+- 组件/Store/API 分层见 `工程结构.mdc`
+- UI 组件库：Element Plus
+
+## 本地验证
+
+```bash
+# 后端
+cd skyworkshop-backend && mvn -q test
+
+# 前端
+cd skyworkshop-frontend && npm run build
+```

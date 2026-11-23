@@ -1,0 +1,54 @@
+---
+description: 项目红线 — 不可违反的约束，每条必须可验证
+alwaysApply: true
+---
+# 项目红线
+
+> 填入你的项目约束。从 5 条开始，代码评审中逐步补充到 10 条。
+> 每条红线必须是可验证的——任何人看代码都能无歧义地判断「这条是否被违反」。
+
+## 红线清单
+
+1. **金额字段必须使用 Integer（分为单位）** — 禁止 Float/Double/BigDecimal
+   - 验证：`grep -rE 'price.*Double|price.*Float|price.*BigDecimal' skyworkshop-backend/src/main/` 返回空
+   - 适用：Java Entity/VO/DTO 所有金额字段（命名约定 `*InCents` / `*_in_cents`），前端 TypeScript 类型对齐
+
+2. **Redis Key 前缀必须为 `skyworkshop:`** — 通过 `RedisKeyConstant` 统一管理
+   - 验证：Redis 相关代码均经 `RedisKeyConstant` 或含 `skyworkshop:` 前缀
+   - 格式：`skyworkshop:{module}:{business}:{identifier}`，必须设置 TTL
+
+3. **RocketMQ Consumer 必须幂等** — 重复消费不产生副作用
+   - 验证：消费者入口有去重逻辑（去重表 / processLog 检查）
+   - Producer 须处理发送失败，消息体含 traceId
+
+4. **异常必须使用 BusinessException + ErrorCode 体系** — 禁止直接抛 RuntimeException
+   - 验证：`grep -r 'throw new RuntimeException' skyworkshop-backend/src/main/` 返回空
+   - 全局拦截：`GlobalExceptionHandler` 统一处理，HTTP 200 + 业务 code 区分成功/失败
+
+5. **Controller 必须使用构造器注入** — 禁止 @Autowired 字段注入
+   - 验证：`grep -r '@Autowired' skyworkshop-backend/src/main/` 返回空
+   - 使用 `@RequiredArgsConstructor` + `final` 字段
+
+6. **@Transactional 必须声明 rollbackFor = Exception.class**
+   - 验证：`grep -r '@Transactional' skyworkshop-backend/src/main/ | grep -v rollbackFor` 返回空
+   - 只读操作使用 `@Transactional(readOnly = true)`
+
+7. **Vue 3 必须使用 `<script setup lang="ts">`** — 禁止 Options API
+   - 验证：`grep -r 'export default {' skyworkshop-frontend/src/` 无 Vue 组件命中
+   - Props 用 `defineProps<T>()`，Emits 用 `defineEmits<T>()`
+
+8. **API 响应格式统一为 `{code, message, data}`** — 使用 `Result<T>` 封装
+   - 验证：所有 Controller 方法返回类型为 `Result<T>` 或 `Result<PageVO<T>>`
+
+## 新增红线
+
+向团队提议 → 确认可验证 → 添加到上方清单。每条须有验证命令或人工审查方法。
+
+## 外部工具覆盖（不由本文件维护）
+
+| 能力 | 说明 |
+|------|------|
+| 代码格式化 | Spotless + Prettier/ESLint，红线不涉及格式 |
+| 秘钥扫描 | 提交前人工审查，禁止硬编码密钥 |
+| SQL 注入检测 | Semgrep 等 SAST 工具 |
+| 依赖漏洞 | `mvn dependency-check` / Dependabot |

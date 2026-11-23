@@ -1,0 +1,3 @@
+{
+  "excludePaths": "/.cursor,/.claude,/.agents,/.trae,/.husky,/.vscode,/.idea,**/node_modules/**,**/dist/**,**/target/**,**/build/**,**/coverage/**,**/vendor/**,**/public/lib/**,**/static/vendor/**,**/mock/**"
+}
